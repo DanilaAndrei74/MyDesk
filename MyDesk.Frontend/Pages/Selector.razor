@@ -1,0 +1,127 @@
+﻿@page "/selector"
+@inject IHttpService _http;
+@inject NavigationManager NavigationManager;
+@inject IAccountService _storage
+
+@if (@loading)
+{
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Wrap="FlexWrap.Wrap">
+        <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    </RadzenStack>
+}
+else
+{
+    <br/>
+    <br />
+    <RadzenStack Gap="1rem" Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Style="height: 100%;">
+    <RadzenCard>
+
+    <div class="form-group">
+        <label for="building">Building:</label>
+        <select id="building" @bind="model.Building" @bind:after=OnBuildingChanged class="form-control">
+            <option value="" >Select Building</option>
+                @foreach (var building in buildings)
+            {
+                <option value="@building.Id">@building.Name</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="floor">Floor:</label>
+        <select id="floor" @bind="model.Floor" @bind:after=OnFloorChanged class="form-control">
+                <option value="">Select Floor</option>
+                @foreach (var floor in floorsSelector)
+            {
+                <option value="@floor.Id">@floor.Name</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="zones">Zones:</label>
+        <select id="zones" @bind="model.Zone" class="form-control" >
+            <option value="" >Select Zones</option>
+            @foreach (var zone in zonesSelector)
+            {
+                <option value="@zone.Id">@zone.Name</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <RadzenLabel Text="Select Date:" Component="DatePickerDateOnlyType" Style="margin-right: 8px; vertical-align: middle;" />
+        <br/>
+        <RadzenDatePicker @bind-Value="@model.Date" DateFormat="dd/MM/yyyy" Name="DatePickerDateOnlyType" />
+    </div>
+    <br/>
+    <button type="submit" class="btn btn-primary" @onclick="Search">Submit</button>
+    </RadzenCard>
+    </RadzenStack>
+}
+
+@code {
+    class SelectorModel
+    {
+        public Guid Building { get; set; }
+        public Guid Floor { get; set; }
+        public Guid Zone { get; set; }
+        public DateTime Date { get; set; } = DateTime.Today;
+    }
+
+    private bool loading = true; 
+
+    List<BuildingOutput> buildings = new List<BuildingOutput>();
+    List<FloorOutput> floors = new List<FloorOutput>();
+    List<ZoneOutput> zones = new List<ZoneOutput>();
+    SelectorModel model = new SelectorModel();
+
+    List<FloorOutput> floorsSelector = new List<FloorOutput>();
+    List<ZoneOutput> zonesSelector = new List<ZoneOutput>();
+
+    void OnChange()
+    {
+        Console.WriteLine(model.Date);
+    }
+
+
+    private void OnBuildingChanged()
+    {
+        floorsSelector = floors.Where(x => x.Building_Id == model.Building).ToList();
+        StateHasChanged();
+    }
+
+    private void OnFloorChanged()
+    {
+        zonesSelector = zones.Where(x => x.FloorId == model.Floor).ToList();
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        loading = false;
+    }
+
+    void Search()
+    {
+        var path = "/zone/" + model.Zone + "/date/" + model.Date.ToString("yyyy-MM-dd");
+        _storage.SetUri(path);
+        NavigationManager.NavigateTo(path);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            
+            await _storage.Get();
+            buildings = await _http.GetAllBuildings();
+            floors = await _http.GetAllFloors();
+            zones = await _http.GetAllZones();
+            loading = false;
+            StateHasChanged();
+            
+            if (_storage.User == null) NavigationManager.NavigateTo("/login");
+        }
+    }
+}
+

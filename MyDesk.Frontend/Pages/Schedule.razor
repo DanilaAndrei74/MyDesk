@@ -1,0 +1,117 @@
+﻿@page "/schedule"
+@inject IHttpService _http;
+@inject NavigationManager NavigationManager;
+@inject IAccountService _storage;
+@inject IAlertService AlertService;
+
+
+@if (@loading)
+{
+<RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Wrap="FlexWrap.Wrap">
+    <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+</RadzenStack>
+}
+else
+{
+    <br/>
+    <br/>
+    <RadzenStack Gap="1rem" Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Style="height: 100%;">
+        <RadzenCard>
+
+
+            <div class="form-group">
+                <label for="building">Building:</label>
+                <select id="building" @bind="model.BuildingId" class="form-control">
+                    <option value="">Select Building</option>
+                    @foreach (var building in buildings)
+                    {
+                        <option value="@building.Id">@building.Name</option>
+                    }
+                </select>
+            </div>
+
+            <br/>
+            <div class="form-group">
+                <label for="team">Team:</label>
+                <select id="team" @bind="model.TeamId" class="form-control">
+                    <option value="">Select Team</option>
+                    @foreach (var team in teams)
+                    {
+                        <option value="@team.Id">@team.Name</option>
+                    }
+                </select>
+            </div>
+            
+            <br/>
+            <div class="form-group">
+                <RadzenLabel Text="Select Date:" Component="DatePickerDateOnlyType" Style="margin-right: 8px; vertical-align: middle;"/>
+                <br/>
+                <RadzenDatePicker @bind-Value="@model.Date" DateFormat="dd/MM/yyyy" Name="DatePickerDateOnlyType"/>
+            </div>
+            <br/>
+            <button type="submit" class="btn btn-primary" @onclick="ScheduleTeam">Schedule</button>
+        </RadzenCard>
+    </RadzenStack>
+}
+
+@code {
+    private bool loading = true;
+
+    class ScheduleModel
+    {
+        public Guid BuildingId { get; set; }
+        public Guid TeamId { get; set; }
+        public DateTime Date { get; set; } = DateTime.Today;
+    }
+
+    ScheduleModel model = new ScheduleModel();
+
+    List<TeamOutput> teams = new List<TeamOutput>();
+    List<BuildingOutput> buildings = new List<BuildingOutput>();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            
+            await _storage.Get();
+            buildings = await _http.GetAllBuildings();
+            teams = await _http.GetAllTeams();
+            StateHasChanged();
+            
+            if (_storage.User == null) NavigationManager.NavigateTo("/login");
+            if (_storage.User.IsAdmin == false) NavigationManager.NavigateTo("/home");
+        }
+    }
+
+    private async void ScheduleTeam()
+    {
+        var input = new ScheduleTeamInput()
+        {
+            BuildingId = model.BuildingId,
+            TeamId = model.TeamId,
+            Date = model.Date
+        };
+
+        try
+        {
+            var response = await _http.ScheduleTeamReservation(input);
+            if(response.ZoneId == Guid.Empty) AlertService.Error("Could not schedule team");
+
+            var path = "/zone/" + response.ZoneId + "/date/" + response.Date.ToString("yyyy-MM-dd");
+            NavigationManager.NavigateTo(path);
+            AlertService.Success("Succesfully scheduled team. Redirecting to zone", true);
+        }
+        catch
+        {
+            AlertService.Error("Could not schedule team");
+        }
+        
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        loading = false;
+    }
+
+}

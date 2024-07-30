@@ -1,0 +1,270 @@
+﻿@page "/zone/{zoneId:guid}/date/{currentDate:datetime}"
+@inject IHttpService _http;
+@inject DialogService DialogService
+@inject NavigationManager NavigationManager;
+@inject IAccountService _storage
+@inject IAlertService AlertService
+
+@if (@loading)
+{
+    <RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Stretch" Wrap="FlexWrap.Wrap">
+        <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    </RadzenStack>
+}
+else
+{
+    <RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Orientation="Orientation.Vertical">
+    <RadzenCard>
+        <RadzenText Text="@DateText"></RadzenText>
+    </RadzenCard>
+    <RadzenCard>
+    <div class="grid-container">
+        @for (int y = 0; y < zoneSize.y; y++)
+        {
+            <div class="grid-row">
+                @for (int x = 0; x < zoneSize.x; x++)
+                {
+                    // Find the tile at position (x, y) if it exists
+                    TileExtendedOutput tile = zoneTiles.FirstOrDefault(t => t.Tile.X_Position == x && t.Tile.Y_Position == y);
+                    <button class="grid-item btn btn-outline-primary" disabled="@IsDisabled(tile)" @onclick="() => ShowInlineDialog(tile)">
+                        @if (tile.Tile.Type == TileType._1 || tile.Tile.Type == TileType._0)
+                        {
+                            <RadzenImage Path="@ButtonColor(tile)" class="grid-item btn btn-outline-primary" />
+                        }
+                    </button>
+                }
+            </div>
+        }
+    </div>
+    </RadzenCard>
+    <RadzenDialog/>
+    </RadzenStack>
+}
+
+
+
+
+@code {
+
+    //__________________________
+    private bool loading;
+    List<TileExtendedOutput> zoneTiles = new List<TileExtendedOutput>();
+    private string DateText;
+
+    [Parameter]
+    public Guid zoneId { get; set; }/* = new Guid("ea4c2766-88fc-4d50-5a2b-08dc32db9204"); */
+    [Parameter]
+    public DateTime currentDate { get; set; }
+
+    ZoneSize zoneSize = new ZoneSize();
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            DateText = "Date selected: " + currentDate.ToShortDateString();
+            loading = true;
+            await _storage.Get();
+            zoneTiles = await _http.GetZoneTilesWithReservations(zoneId, currentDate);
+            zoneSize = GetZoneSize(zoneTiles);
+            loading = false;
+            StateHasChanged();
+            if (_storage.User == null) NavigationManager.NavigateTo("/login");
+            if (_storage.User!.lastZoneUri == string.Empty) NavigationManager.NavigateTo("/selector");
+        }
+    }
+
+    class ZoneSize
+    {
+        public int x { get; set; }
+        public int y { get; set; }
+    }
+
+    private ZoneSize GetZoneSize(List<TileExtendedOutput> zoneTiles)
+    {
+        return new ZoneSize { 
+                x = zoneTiles.Max(t => t.Tile.X_Position),
+                y = zoneTiles.Max(t => t.Tile.Y_Position)
+            } ;
+    }
+
+    private bool IsDisabled(TileExtendedOutput tile)
+    {
+        var IsAdmin = false;
+        if (_storage.User != null) IsAdmin = _storage.User.IsAdmin; 
+        return !(tile.Tile.Type == 0) && !IsAdmin;
+    }
+
+    private string ButtonColor(TileExtendedOutput tile)
+    {
+
+        if (tile.Tile.Type == TileType._1) return "computer_red.png";
+        if (tile.Reservation.Reservation_Id == Guid.Empty) return "computer_green.png";
+        if (_storage.User != null && tile.Reservation.User_Id == _storage.User.Id) return "computer_blue.png";
+
+        return "computer_yellow.png";
+    }
+
+    private string Evaluate(TileExtendedOutput tile)
+    {
+        string text = String.Empty;
+        if (tile.Tile.Type == TileType._0 && tile.Reservation.Reservation_Id != Guid.Empty) text = "Reserved desk";
+        if (tile.Tile.Type == TileType._0 && tile.Reservation.Reservation_Id == Guid.Empty) text = "Desk";
+        if (tile.Tile.Type == TileType._1) text = "Unavailable desk";
+        if (tile.Tile.Type == TileType._6) text = "Floor";
+
+
+        return text;
+    }
+
+    async Task ShowInlineDialog(TileExtendedOutput tile)
+    {
+        /*
+        * Reserve/Cancel reservation
+        * Select tile type ( for admin)
+        * _0 -> Desk
+        * _1 -> DeskUnavailable
+        * _6 -> Floor
+        */
+
+        var deskName = tile.Tile.X_Position.ToString() + tile.Tile.Y_Position.ToString();
+        var reservationInfo = new ReservationAddon()
+        {
+            Date= currentDate,
+            Reservation_Id = Guid.Empty,
+            User_FirstName = "null",
+            User_LastName = "null",
+            User_Team = "null",
+            User_Id = Guid.Empty
+
+        };
+        if (tile.Reservation != null) reservationInfo = tile.Reservation;
+
+        TileTypes selectedType = new TileTypes(); 
+
+     var result = await DialogService.OpenAsync("", ds =>
+        @<RadzenStack Gap="1rem" Orientation="Orientation.Vertical" JustifyContent="JustifyContent.SpaceBetween" Style="height: 100%;">
+        <RadzenRow class="rz-text-align-center rz-border-info-light" Gap="1rem">
+            <RadzenColumn>
+                <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center">
+                    <RadzenImage Path="person_default.png" Style="width: 100px; height: 100px; border-radius: 50%;" />
+                </RadzenRow>
+
+                <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-5">
+
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-2 rz-my-0">FirstName:</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1"><b>@(reservationInfo.User_FirstName)</b></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-2 rz-my-0">FirstName:</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1"><b>@(reservationInfo.User_LastName)</b></RadzenText>
+                    <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Team:</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1"><b>@reservationInfo.User_Team</b></RadzenText>
+                </RadzenColumn>
+            </RadzenColumn>
+            <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-5">
+            <div class="row">
+                @if(_storage.User.IsAdmin)
+            {
+                <RadzenText>Change tile type:</RadzenText>
+                <select id="TileType" @bind="selectedType" @bind:after="() => OnTileTypeChanged(tile,selectedType)" class="form-control">
+                @foreach (var type in (TileTypes[])Enum.GetValues(typeof(TileTypes)))
+                {
+                    <option value="@type">@type</option>
+                }
+
+                </select>
+                <br />
+            }
+            </div>
+            <br/>
+            <div class="row">
+                <div class="col-md-12">
+                    
+                    @if (tile.Reservation.Reservation_Id == Guid.Empty)
+                    {
+                        <RadzenButton Text="Reserve" Click="() => CreateReservation(tile, ds)" Style="margin-bottom: 10px; width: 150px"/>
+                    }
+                    else
+                    {
+                        @if (tile.Reservation.User_Id == _storage.User.Id || _storage.User.IsAdmin)
+                        {
+                            <RadzenButton Text="Cancel reservation" Click="() => CancelReservation(tile, ds)" Style="margin-bottom: 10px; width: 150px"/>
+                        }
+                        else
+                        {
+                            <RadzenButton Text="Reserved" Disabled Style="margin-bottom: 10px; width: 150px"/>
+                        }
+                    }
+                </div>
+            </div>
+            <RadzenText Text="@deskName" />
+            </RadzenColumn>
+    </RadzenRow>
+    </RadzenStack>
+       );
+
+        Console.WriteLine($"Dialog result: {result}");
+    }
+
+    async Task OnTileTypeChanged(TileExtendedOutput tile, TileTypes selectedType)
+    {
+        switch (selectedType)
+        {
+            case TileTypes.Desk:
+                tile.Tile.Type = TileType._0;
+                break;
+            case TileTypes.DeskUnavailable:
+                tile.Tile.Type = TileType._1;
+                break;
+            case TileTypes.Floor:
+                tile.Tile.Type = TileType._6;
+                break;
+            default: break;
+        }
+
+        TileInput input = new TileInput()
+        {
+            Type = tile.Tile.Type,
+            X_Position = tile.Tile.X_Position,
+            Y_Position = tile.Tile.Y_Position,
+            Zone_Id = tile.Tile.Zone_Id,
+        };
+
+        await _http.UpdateTile(input, tile.Tile.Id);
+        StateHasChanged();
+    }
+
+    async Task CreateReservation(TileExtendedOutput tile, DialogService ds)
+    {
+
+        var input = new ReservationInput()
+        {
+            Date = currentDate,
+            Desk_Id = tile.Tile.Id,
+            User_Id = _storage.User.Id
+        };
+
+        try
+        {
+            var response = await _http.CreateReservation(input);
+        }
+        catch
+        {
+            AlertService.Error("Cannot reserve Floor/DeskUnavailable ");
+        }
+        ds.Close();
+        await OnAfterRenderAsync(true);
+    }
+
+    async Task CancelReservation(TileExtendedOutput tile, DialogService ds)
+    {
+        await _http.CancelReservation(tile.Reservation.Reservation_Id);
+        ds.Close();
+        await OnAfterRenderAsync(true);
+    }
+
+}
+
+

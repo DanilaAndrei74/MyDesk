@@ -1,0 +1,70 @@
+﻿@inherits LayoutComponentBase
+@inject IAccountService _storage
+@inject IAlertService AlertService
+
+<PageTitle>MyDesk</PageTitle>
+
+<RadzenLayout style="position: relative;grid-template-areas: 'rz-sidebar rz-header' 'rz-sidebar rz-body'">
+    <RadzenHeader>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
+            <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)" />
+            <RadzenLabel Text="MyDesk" />
+        </RadzenStack>
+    </RadzenHeader>
+    <RadzenSidebar Responsive="false" @bind-Expanded="@sidebarExpanded" style="position: absolute; z-index: 3">
+        <RadzenStack AlignItems="AlignItems.End" Class="rz-p-2">
+            <RadzenButton Icon="west" Variant="Variant.Text" Text="MyDesk" ButtonStyle="ButtonStyle.Secondary" Click="@(() => sidebarExpanded = false)" />
+        </RadzenStack>
+        <RadzenPanelMenu>
+            <RadzenPanelMenuItem Text="Home" Icon="home" Path="" Click="@(() => sidebarExpanded = false)" />
+            @if(_storage.User != null)
+            {
+                <RadzenPanelMenuItem Text="Profile" Icon="account_circle" Path="@UserIdPath" Click="@(() => sidebarExpanded = false)" />
+                <RadzenPanelMenuItem Text="Selector" Icon="find_in_page" Path="selector" Click="@(() => sidebarExpanded = false)" />
+                <RadzenPanelMenuItem Text="Last zone" Icon="event_seat" Path="@ZoneUri" Click="@(() => {sidebarExpanded = false; AlertService.Info("Last zone wasn't found'");})" />
+                if (IsAdmin)
+                {
+                    <RadzenPanelMenuItem Text="Schedule" Icon="book" Path="schedule" Click="@(() => sidebarExpanded = false)" />
+                }
+                <RadzenPanelMenuItem Text="Logout" Icon="exit_to_app" Path="logout" Click="@(() => sidebarExpanded = false)" />
+            }
+            else
+            {
+            <RadzenPanelMenuItem Text="Login" Icon="account_box" Path="login" Click="@(() => sidebarExpanded = false)" />
+            }
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+    <RadzenBody>
+        <div class="rz-p-4">
+            <Alert/>
+            @Body
+        </div>
+    </RadzenBody>
+    @if (sidebarExpanded)
+    {
+        <div @onclick="@(() => sidebarExpanded = false)" class="rz-dialog-mask" style="position: absolute; z-index: 2"></div>
+    }
+</RadzenLayout>
+
+@code {
+    bool sidebarExpanded = false;
+    private string ZoneUri;
+    private string UserIdPath;
+    private bool IsAdmin;
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+
+        await _storage.Get();
+        if (_storage.User != null)
+        {
+            IsAdmin = _storage.User.IsAdmin;
+            UserIdPath = "profile/" + _storage.User.Id.ToString();
+            if (_storage.User.lastZoneUri == string.Empty) ZoneUri = "selector";
+            else ZoneUri = _storage.User.lastZoneUri;
+        }
+        StateHasChanged();
+    }
+}
+

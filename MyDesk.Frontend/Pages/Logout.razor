@@ -1,0 +1,15 @@
+﻿@page "/logout"
+@inject IAccountService _storage
+@inject NavigationManager NavigationManager;
+<h3>Logout</h3>
+
+@code {
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			await _storage.Delete();
+			NavigationManager.NavigateTo("/login");
+		}
+	}
+}

@@ -1,0 +1,91 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject IAccountService _storage
+@inject IHttpService _http;
+
+@if (@loading)
+{
+	<RadzenStack Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Stretch" Wrap="FlexWrap.Wrap">
+		<RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+	</RadzenStack>
+}
+else
+{
+	@if (false && _storage.User != null)
+	{
+		<div>
+			@_storage.User.FirstName
+			@_storage.User.LastName
+			@_storage.User.Id
+			@_storage.User.Email
+			@_storage.User.JWT
+		</div>
+	}
+
+	<PageTitle>Home</PageTitle>
+	<RadzenStack AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Orientation="Orientation.Horizontal">
+		<RadzenRow>
+			<RadzenColumn>
+				<RadzenCard>
+					Active users: @activeUsers
+				</RadzenCard>
+			</RadzenColumn>
+			<RadzenColumn>
+				<RadzenCard >
+					Active reservations: @reservations
+				</RadzenCard>
+			</RadzenColumn>
+		</RadzenRow>
+		<RadzenRow>
+			<RadzenCard>
+
+
+				<RadzenRow>
+					&emsp; Welcome to MyDesk, your ultimate solution for seamless seat reservations! Tired of the hassle of finding a spot to work or study in your favorite co-working spaces or libraries? MyDesk has you covered. With our user-friendly app, you can reserve your ideal workspace in just a few taps, ensuring productivity and comfort wherever you go.
+				</RadzenRow>
+
+				<RadzenRow>
+					&emsp; Here's how it works: simply navigate to the "Zone Selector" page and input your desired date and zone. Whether you prefer a quiet corner, a communal table, or a spot near the window for some natural light, MyDesk lets you customize your seating preferences with ease.
+				</RadzenRow>
+
+				<RadzenRow>
+					&emsp; Once you've selected your date and zone, MyDesk will display all available desks in that area, complete with detailed information such as desk size, proximity to amenities like power outlets and coffee stations, and any special features such as ergonomic chairs or standing desks.
+				</RadzenRow>
+				<RadzenRow>
+					&emsp; Browse through the options, compare amenities, and choose the perfect desk that suits your needs. With MyDesk, you can say goodbye to the frustration of searching for a workspace at the last minute.
+				</RadzenRow>
+			</RadzenCard>
+		</RadzenRow>
+	</RadzenStack>
+}
+
+@code {
+	[Parameter]
+	public MetricsOutput metrics { get; set; }
+	public int activeUsers { get; set; }
+	public int reservations { get; set; }
+
+	protected override async Task OnInitializedAsync()
+	{
+	}
+
+	private bool loading;
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if(firstRender)
+		{
+			loading = true;
+			await _storage.Get();
+			var metricsInput = new MetricsInput()
+				{
+					FirstDate = DateTime.Now,
+					SecondDate = DateTime.Now.AddMonths(1)
+				};
+			metrics = await _http.GetMetrics(metricsInput);
+			activeUsers = metrics.UserCount;
+			reservations = metrics.ReservationCount;
+			loading = false;
+			StateHasChanged();
+		}
+	}
+}

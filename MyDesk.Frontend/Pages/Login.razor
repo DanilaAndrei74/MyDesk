@@ -1,0 +1,138 @@
+﻿@page "/login"
+@inject IAlertService AlertService
+@inject NavigationManager NavigationManager
+@inject IHttpService _http;
+@inject IAccountService _storage
+
+
+
+@if (loading)
+{
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Wrap="FlexWrap.Wrap">
+        <RadzenProgressBarCircular ProgressBarStyle="ProgressBarStyle.Primary" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    </RadzenStack>
+}
+else
+{
+
+
+    <RadzenCard class="rz-my-12 rz-mx-auto rz-p-4 rz-p-md-12" style="max-width: 700px;">
+    <EditForm Model=@model OnValidSubmit=@ValidFormSubmitted OnInvalidSubmit=@InvalidFormSubmitted FormName="Login">
+        <FluentValidationValidator ValidatorType=typeof(Validators.LoginValidator) />
+            
+        <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Wrap="FlexWrap.Wrap" Gap="1rem" Class="rz-p-sm-12">
+
+            <RadzenRow class="rz-text-align-center" Gap="1rem">
+             <RadzenFormField Text="Email" Variant="@variant" style="max-width: 400px;">
+                <Start>
+                    <RadzenIcon Icon="account_circle" />
+                </Start>
+                <ChildContent>
+                    <RadzenTextBox @bind-Value=@model.Email AutoComplete=true />
+                </ChildContent>
+            </RadzenFormField>
+            </RadzenRow>
+
+            <RadzenRow class="rz-text-align-center" Gap="1rem">
+            <RadzenFormField Text="Password" Variant="@variant" style="max-width: 400px;">
+                <Start>
+                        <RadzenIcon Icon="lock" />
+                </Start>
+                <ChildContent>
+                        <RadzenTextBox @bind-Value=@model.Password Visible="@(!password)" />
+                        <RadzenPassword @bind-Value=@model.Password Visible="@password" />
+                </ChildContent>
+               @*  <End>
+                    <RadzenButton Icon="@(password ? "visibility" : "visibility_off")" Click="TogglePassword" Variant="Variant.Text" Size="ButtonSize.Small" />
+                </End> *@
+            </RadzenFormField>
+            </RadzenRow>
+            
+            <RadzenRow class="rz-text-align-center" Gap="1rem">
+                <RadzenColumn class="">
+                    <RadzenButton type="submit" Text="Login" ButtonStyle="ButtonStyle.Primary" />
+                </RadzenColumn>
+                <RadzenColumn class="">
+                    <RadzenButton type="register" Text="Register" ButtonStyle="ButtonStyle.Secondary" Click="() => GoToRegister()"/>
+                </RadzenColumn>
+            </RadzenRow>
+            <RadzenRow JustifyContent="JustifyContent.End">
+                <RadzenLink Text="Forgot password?" Path="ForgotPassword"/>
+            </RadzenRow>
+            </RadzenStack>
+            <ValidationMessage For=@(() => model.Email) />
+            <ValidationMessage For=@(() => model.Password) />
+    </EditForm>
+    </RadzenCard>
+
+
+}
+
+@code {
+    private bool loading;
+    private bool rememberMe;
+    Variant variant = Variant.Outlined;
+    string passwordValue = "password";
+    bool password = true;
+
+    LoginModel model = new LoginModel();
+
+    async void ValidFormSubmitted(EditContext editContext)
+    {
+        //reset alerts on submit
+
+        AlertService.Clear();
+
+        loading = true;
+        try
+        {
+            var loginInput = new LoginInput { Email = model.Email, Password = model.Password };
+            var response = await _http.Login(loginInput);
+            if (response.Success)
+            {
+                await _storage.Set(new UserLocal()
+                {
+                    Email = response.Email,
+                    FirstName = response.FirstName,
+                    LastName = response.LastName,
+                    Id = response.UserId,
+                    IsAdmin = response.IsAdmin,
+                    JWT = response.Jwt,
+                });
+                NavigationManager.NavigateTo("/");
+            }
+            else
+
+            {
+                AlertService.Error("Username or password is wrong");
+                model.Password = string.Empty;
+                loading = false;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            AlertService.Error(ex.Message);
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    void InvalidFormSubmitted(EditContext editContext)
+    {
+        System.Diagnostics.Debug.WriteLine("User submitted an invalid form");
+    }
+
+
+    void TogglePassword()
+    {
+        password = !password;
+    }
+
+    void GoToRegister()
+    {
+        NavigationManager.NavigateTo("register");
+    }
+
+
+}

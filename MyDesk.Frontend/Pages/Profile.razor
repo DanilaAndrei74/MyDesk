@@ -1,0 +1,146 @@
+﻿@page "/profile/{userId:guid}"
+@inject IHttpService _http;
+@inject NavigationManager NavigationManager;
+@inject IAccountService _storage
+@inject IAlertService AlertService
+
+<br/>
+<RadzenStack Gap="1rem" Orientation="Orientation.Vertical" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center" Style="height: 100%;">
+    <RadzenRow class="rz-text-align-center rz-border-info-light rz-background-color-info-lighter rz-color-on-info-lighter rz-p-5" Gap="1rem">
+        <RadzenColumn>
+            <RadzenRow JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center">
+                <RadzenImage Path="person_default.png" Style="width: 100px; height: 100px; border-radius: 50%;" />  
+            </RadzenRow>
+            <br/>
+            <RadzenStack JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Center">
+            <RadzenRow>
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-2 rz-my-0">FirstName:</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1"><b>@(userInfo.First_Name)</b></RadzenText>
+            </RadzenRow>
+             <RadzenRow> 
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-2 rz-my-0">FirstName:</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1"><b>@(userInfo.Last_Name)</b></RadzenText>
+             </RadzenRow>
+            <RadzenRow >
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Team:</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1"><b>@userInfo.Email</b></RadzenText>
+            </RadzenRow>
+            <RadzenRow>
+                <RadzenText TextStyle="TextStyle.Overline" class="rz-display-flex rz-mt-4 rz-mb-0">Team:</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body1"><b>@userInfo.Team</b></RadzenText>
+             </RadzenRow>
+            </RadzenStack>
+        </RadzenColumn>
+        <RadzenColumn class="rz-background-color-info-lighter rz-color-on-info-lighter rz-p-5">
+     
+            <EditForm Model=@model OnValidSubmit=@ValidFormSubmitted OnInvalidSubmit=@InvalidFormSubmitted FormName="Change password">
+                <FluentValidationValidator ValidatorType=typeof(Validators.ChangePasswordValidator) />
+
+                <RadzenStack Orientation="Orientation.Vertical" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.Center" Wrap="FlexWrap.Wrap" Gap="1rem" Class="rz-p-sm-12">
+                    <RadzenRow>
+                        Change password
+                    </RadzenRow>
+                    <RadzenRow class="rz-text-align-center" Gap="1rem">
+                        <RadzenFormField Text="Current password"  style="max-width: 400px;">
+                            <ChildContent>
+                                <RadzenPassword @bind-Value=@model.CurrentPassword />
+                            </ChildContent>
+                        </RadzenFormField>
+                    </RadzenRow>
+
+                    <RadzenRow class="rz-text-align-center" Gap="1rem">
+                        <RadzenFormField Text="New password" style="max-width: 400px;">
+                            <ChildContent>
+                                <RadzenPassword @bind-Value=@model.NewPassword />
+                            </ChildContent>
+                        </RadzenFormField>
+                    </RadzenRow>
+
+                    <RadzenRow class="rz-text-align-center" Gap="1rem">
+                        <RadzenFormField Text="Confirm password" style="max-width: 400px;">
+                            <ChildContent>
+                                <RadzenPassword @bind-Value=@model.NewPasswordConfirmation />
+                            </ChildContent>
+                        </RadzenFormField>
+                    </RadzenRow>
+
+                    <RadzenRow class="rz-text-align-center" Gap="1rem" JustifyContent="JustifyContent.Center" AlignItems="AlignItems.Stretch">
+                        <RadzenColumn class="">
+                            <RadzenButton Text="Change password" ButtonStyle="ButtonStyle.Primary" Click="() => ChangePassword()"/>
+                        </RadzenColumn>
+                    </RadzenRow>
+                </RadzenStack>
+                <ValidationMessage For=@(() => model.CurrentPassword) />
+                <ValidationMessage For=@(() => model.NewPassword) />
+                <ValidationMessage For=@(() => model.NewPasswordConfirmation) />
+            </EditForm>
+            
+        </RadzenColumn>
+    </RadzenRow>
+</RadzenStack>
+
+@code {
+    private bool loading;
+    UserOutput userInfo = new UserOutput() { /* First_Name=string.Empty,Last_Name=string.Empty,Email=string.Empty,Team=string.Empty,Updated_At=DateTime.Now,Id=Guid.Empty */};
+    ChangePasswordModel model = new ChangePasswordModel();
+
+    [Parameter]
+    public Guid userId { get; set; }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            loading = true;
+            userInfo = await _http.GetUserById(userId);
+
+            await _storage.Get();
+            loading = false;
+            StateHasChanged();
+            if (_storage.User == null) NavigationManager.NavigateTo("/login");
+            if (_storage.User!.Id != userId) NavigationManager.NavigateTo("/");
+        }
+    }
+
+    async void ValidFormSubmitted(EditContext editContext)
+    {
+        if(model.NewPassword != model.NewPasswordConfirmation)
+        {
+            AlertService.Error("New password doesnt match");
+            model = new ChangePasswordModel();
+            StateHasChanged();
+        }
+
+        var request = _http.ChangePassword(userId, model.CurrentPassword, model.NewPassword);
+
+        if (request.Result)
+        {
+            NavigationManager.NavigateTo("/login");
+            AlertService.Success("Password changed. Redirecting to login page...", true);
+        }
+        else
+        {
+            AlertService.Error("The current password is not correct");
+        }
+    }
+
+    async void InvalidFormSubmitted(EditContext editContext)
+    {
+
+    }
+
+    private void ChangePassword()
+    {
+
+        AlertService.Success("Password changed. Redirecting to login page...", true);
+        Thread.Sleep(1000);
+        _storage.Delete();
+        NavigationManager.NavigateTo("/login");
+    }
+
+}
